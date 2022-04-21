@@ -1,4 +1,4 @@
-# DockerComposeElasticsearch
+# elasticsearch-elk
 
 <img src="https://miro.medium.com/max/700/1*ZsZbAu4CawTm44lv4tycXA.png" height="200" />
 
