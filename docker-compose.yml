@@ -1,4 +1,20 @@
+# sudo sysctl -w vm.max_map_count=262144
+#elasticsearch.password: '.@LJUx/mjSR7_pFW'
 version: "3.8"
+
+volumes:
+  elk01:
+    name: elk01
+  elk02:
+    name: elk02
+  elk03:
+    name: elk03
+
+networks:
+  elk:
+    name: elk
+    driver: bridge
+
 services:
 
   elasticsearch01:
@@ -6,19 +22,27 @@ services:
       context: elasticsearch/
       args:
         ELK_VERSION: ${ELK_VERSION:-7.10.1}
+    container_name: elasticsearch01
+    hostname: elasticsearch01
     volumes:
       - type: bind
-        source: ./elasticsearch/elasticsearch.yml
+        source: ./elasticsearch/elasticsearch01.yml
+        #source: ./elasticsearch/elasticsearch.yml
         target: /usr/share/elasticsearch/config/elasticsearch.yml
         read_only: true
       #- ${ELASTICSEARCH_DATA:-/data}/elasticsearch01:/usr/share/elasticsearch/data
+      - elk01:/usr/share/elasticsearch/data
+      - ./elasticsearch/elasticsearch01:/usr/share/elasticsearch/config/elasticsearch01:rw
+      - ./elasticsearch/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore:rw
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - 9200:9200
+      - 9300:9300
+    networks:
+      - elk
     environment:
       - node.name=elasticsearch01
-      - discovery.seed_hosts=elasticsearch02
-      - cluster.initial_master_nodes=elasticsearch01,elasticsearch02
+      - discovery.seed_hosts=elasticsearch02,elasticsearch03
+      - cluster.initial_master_nodes=elasticsearch01,elasticsearch02,elasticsearch03
       - bootstrap.memory_lock=true
       #- "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
     ulimits:
@@ -31,16 +55,60 @@ services:
       context: elasticsearch/
       args:
         ELK_VERSION: ${ELK_VERSION:-7.10.1}
+    container_name: elasticsearch02
+    hostname: elasticsearch02
     volumes:
       - type: bind
-        source: ./elasticsearch/elasticsearch.yml
+        source: ./elasticsearch/elasticsearch02.yml
+        #source: ./elasticsearch/elasticsearch.yml
         target: /usr/share/elasticsearch/config/elasticsearch.yml
         read_only: true
       #- ${ELASTICSEARCH_DATA:-/data}/elasticsearch02:/usr/share/elasticsearch/data
+      - elk02:/usr/share/elasticsearch/data
+      - ./elasticsearch/elasticsearch02:/usr/share/elasticsearch/config/elasticsearch02:rw
+      - ./elasticsearch/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore:rw
+    ports:
+      - 9202:9200
+      - 9302:9300
+    networks:
+      - elk
     environment:
       - node.name=elasticsearch02
-      - discovery.seed_hosts=elasticsearch01
-      - cluster.initial_master_nodes=elasticsearch01,elasticsearch02
+      - discovery.seed_hosts=elasticsearch01,elasticsearch03
+      - cluster.initial_master_nodes=elasticsearch01,elasticsearch02,elasticsearch03
+      - bootstrap.memory_lock=true
+      #- "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  elasticsearch03:
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: ${ELK_VERSION:-7.10.1}
+    container_name: elasticsearch03
+    hostname: elasticsearch03
+    volumes:
+      - type: bind
+        source: ./elasticsearch/elasticsearch03.yml
+        #source: ./elasticsearch/elasticsearch.yml
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+        read_only: true
+      #- ${ELASTICSEARCH_DATA:-/data}/elasticsearch03:/usr/share/elasticsearch/data
+      - elk03:/usr/share/elasticsearch/data
+      - ./elasticsearch/elasticsearch03:/usr/share/elasticsearch/config/elasticsearch03:rw
+      - ./elasticsearch/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore:rw
+    ports:
+      - 9203:9200
+      - 9303:9300
+    networks:
+      - elk
+    environment:
+      - node.name=elasticsearch03
+      - discovery.seed_hosts=elasticsearch01,elasticsearch02
+      - cluster.initial_master_nodes=elasticsearch01,elasticsearch02,elasticsearch03
       - bootstrap.memory_lock=true
       #- "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
     ulimits:
@@ -53,6 +121,8 @@ services:
       context: kibana/
       args:
         ELK_VERSION: ${ELK_VERSION:-7.10.1}
+    container_name: kibana
+    hostname: kibana
     volumes:
       - type: bind
         source: ./kibana/kibana.yml
@@ -60,15 +130,22 @@ services:
         read_only: true
     ports:
       - 5601:5601
+    networks:
+      - elk
     depends_on:
       - elasticsearch01
       - elasticsearch02
+      - elasticsearch03
 
-  web_server:
+  elk-proxy:
     build:
       context: ./nginx
+    container_name: elk-proxy
+    hostname: elk-proxy
     restart: always
     ports:
-      - 80:80
+      - 8888:80
+    networks:
+      - elk
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
